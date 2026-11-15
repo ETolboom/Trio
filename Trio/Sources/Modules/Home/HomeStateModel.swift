@@ -11,6 +11,7 @@ import LibreTransmitter
 import LoopKit
 import LoopKitUI
 import Observation
+import SibionicsKit
 import SwiftDate
 import SwiftUI
 import SyaiKit
@@ -947,6 +948,9 @@ extension Home {
             case let syai as SyaiCGMManager:
                 return syai.sensorExpirationDate
 
+            case let sibionics as SibionicsCGMManager:
+                return sibionics.sensorExpirationDate
+
             default:
                 return nil
             }
@@ -994,6 +998,9 @@ extension Home {
 
             case let syai as SyaiCGMManager:
                 return syai.sensorWarmupEndDate
+
+            case let sibionics as SibionicsCGMManager:
+                return sibionics.sensorWarmupEndDate
 
             default:
                 return nil
