@@ -1,4 +1,5 @@
 import Foundation
+import LoopKit
 import Testing
 import UserNotifications
 
@@ -45,5 +46,77 @@ import UserNotifications
 
     @Test("The quick snooze is the 15-minute action, not a second constant") func oneSourceOfTruth() {
         #expect(BaseTrioAlertManager.quickSnooze == NotificationResponseAction.snooze15.duration)
+    }
+
+    @Test("Glucose alarms still snooze only their own type") func glucoseAlarmScope() {
+        for type in GlucoseAlertType.allCases {
+            let identifier = Alert.Identifier(
+                managerIdentifier: "Trio.glucose",
+                alertIdentifier: "glucose.\(type.rawValue).\(UUID().uuidString)"
+            )
+            #expect(BaseTrioAlertManager.dismissalSnoozeScope(for: identifier) == .glucoseType(type))
+        }
+    }
+
+    // MARK: - Dismissal never reaches the global snooze
+
+    private static func scope(_ manager: String, _ alert: String) -> DismissalSnoozeScope {
+        BaseTrioAlertManager.dismissalSnoozeScope(for: Alert.Identifier(managerIdentifier: manager, alertIdentifier: alert))
+    }
+
+    /// Regression: this used to fall through to the global snooze.
+    @Test("A pump communication error snoozes only its own tier") func commsErrorSnoozesItsTier() {
+        #expect(Self.scope("trio.aps", "commsTransient") == .deviceTier(.normal))
+    }
+
+    @Test("Catalogued non-critical alerts snooze their tier") func nonCriticalSnoozesTier() {
+        #expect(Self.scope("trio.aps", "bolusFailed") == .deviceTier(.timeSensitive))
+        #expect(Self.scope("trio.aps", "reservoirLow") == .deviceTier(.timeSensitive))
+        #expect(Self.scope("trio.aps", "algorithmError") == .deviceTier(.normal))
+    }
+
+    @Test(
+        "Critical alerts are only acknowledged",
+        arguments: [
+            ("trio.aps", "occlusion"),
+            ("trio.aps", "deliveryUncertain"),
+            ("trio.aps", "loop.notActive"),
+            ("Dana", "occlusion"),
+            ("Medtrum", "com.nightscout.medtrumkit.patch-fault")
+        ]
+    ) func criticalAcknowledgesOnly(manager: String, alert: String) {
+        #expect(Self.scope(manager, alert) == .acknowledgeOnly)
+    }
+
+    @Test("Not-looping warning steps are only acknowledged") func escalationStepAcknowledgesOnly() {
+        for step in 1 ... 5 {
+            #expect(Self.scope("trio.aps", "loop.notActive.w\(step)") == .acknowledgeOnly)
+        }
+    }
+
+    @Test(
+        "Uncatalogued alerts are only acknowledged",
+        arguments: [
+            ("trio.calibration", "glucose.stale"),
+            ("trio.garmin", "connect.mobile.missing"),
+            ("Trio.unknown", "unknown")
+        ]
+    ) func uncataloguedAcknowledgesOnly(manager: String, alert: String) {
+        #expect(Self.scope(manager, alert) == .acknowledgeOnly)
+    }
+
+    @Test(
+        "Every pump category APSManager issues is catalogued at its own level",
+        arguments: [
+            TrioAlertCategory.occlusion, .reservoirLow, .reservoirEmpty, .batteryLow, .batteryEmpty,
+            .hardwareFault, .deliveryUncertain, .deviceExpirationReminder, .deviceExpired,
+            .podShutdownImminent, .suspendTimeExpired, .bolusFailed, .manualTempBasalActive,
+            .notLooping, .sensorFailure, .glucoseDataStale, .algorithmError, .commsTransient
+        ]
+    ) func everyAPSCategoryCatalogued(category: TrioAlertCategory) {
+        let entry = AlertCatalogRegistry.lookup(
+            Alert.Identifier(managerIdentifier: "trio.aps", alertIdentifier: category.alertIdentifier)
+        )
+        #expect(entry?.interruptionLevel == category.interruptionLevel)
     }
 }

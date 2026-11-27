@@ -32,6 +32,11 @@ extension Alert {
         case pairingFailed
         case userBloodGlucoseReminder
         case basalProfileMismatch
+        // Trio-internal pump concepts, emitted by `APSManager` under `trio.aps`.
+        case deliveryUncertain
+        case bolusFailed
+        case manualTempBasalActive
+        case pumpCommunication
         // CGM-side concepts. Surface through `TrioAlertManager` via
         // `PluginSource.issueAlert(_:)`.
         case cgmExpiringSoon
@@ -80,6 +85,10 @@ extension Alert {
             case .pairingFailed: return String(localized: "Pairing Failed")
             case .userBloodGlucoseReminder: return String(localized: "Blood Glucose Reminder")
             case .basalProfileMismatch: return String(localized: "Basal Profile Mismatch")
+            case .deliveryUncertain: return String(localized: "Delivery Uncertain")
+            case .bolusFailed: return String(localized: "Bolus Failed")
+            case .manualTempBasalActive: return String(localized: "Manual Temp Basal Active")
+            case .pumpCommunication: return String(localized: "Pump Communication Error")
             case .cgmExpiringSoon: return String(localized: "CGM Sensor Expires Soon")
             case .cgmExpired: return String(localized: "CGM Sensor Expired")
             case .cgmReplacementNeeded: return String(localized: "Replace CGM Sensor")

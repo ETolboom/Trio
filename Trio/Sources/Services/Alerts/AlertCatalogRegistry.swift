@@ -347,7 +347,37 @@ private extension AlertCatalogRegistry {
         addEntry("trio.aps", "loop.notActive", .critical, "Trio Not Looping", "Algorithm", .notLooping),
         addEntry("trio.aps", "algorithmError", .active, "Algorithm Error", "Algorithm", .algorithmError),
         addEntry("trio.aps", "glucoseDataStale", .timeSensitive, "Glucose Data Stale", "Algorithm", .glucoseDataStale)
+    ] + trioPumpEntries
+
+    /// Pump categories `APSManager` issues under `trio.aps`; uncatalogued ones can't snooze.
+    static let trioPumpEntries: [Alert.CatalogEntry] = [
+        apsEntry(.occlusion, "Occlusion", "Delivery", .occlusion),
+        apsEntry(.deliveryUncertain, "Delivery Uncertain", "Delivery", .deliveryUncertain),
+        apsEntry(.bolusFailed, "Bolus Failed", "Delivery", .bolusFailed),
+        apsEntry(.manualTempBasalActive, "Manual Temp Basal Active", "Delivery", .manualTempBasalActive),
+        apsEntry(.suspendTimeExpired, "Suspend Time Expired", "Delivery", .insulinResumeReminder),
+        apsEntry(.reservoirLow, "Reservoir Low", "Reservoir", .reservoirLow),
+        apsEntry(.reservoirEmpty, "Reservoir Empty", "Reservoir", .reservoirEmpty),
+        apsEntry(.batteryLow, "Pump Battery Low", "Battery", .pumpBatteryLow),
+        apsEntry(.batteryEmpty, "Pump Battery Empty", "Battery", .pumpBatteryEmpty),
+        apsEntry(.hardwareFault, "Pump Fault", "Hardware", .hardwareFault),
+        apsEntry(.deviceExpirationReminder, "Device Expiration Reminder", "Lifecycle", .deviceExpirationReminder),
+        apsEntry(.deviceExpired, "Device Expired", "Lifecycle", .deviceExpired),
+        apsEntry(.podShutdownImminent, "Shutdown Imminent", "Lifecycle", .deviceShutdownImminent),
+        apsEntry(.sensorFailure, "Sensor Failure", "Sensor", .cgmReplacementNeeded),
+        apsEntry(.notLooping, "Trio Not Looping", "Algorithm", .notLooping),
+        apsEntry(.commsTransient, "Pump Communication Error", "Connectivity", .pumpCommunication)
     ]
+
+    /// Slug and level come from the category, so they can't drift.
+    static func apsEntry(
+        _ category: TrioAlertCategory,
+        _ title: String,
+        _ group: String,
+        _ concept: Alert.CatalogConcept
+    ) -> Alert.CatalogEntry {
+        addEntry("trio.aps", category.alertIdentifier, category.interruptionLevel, title, group, concept)
+    }
 }
 
 // MARK: - Tidepool

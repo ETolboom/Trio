@@ -545,26 +545,49 @@ final class BaseTrioAlertManager: TrioAlertManager, Injectable {
     }
 }
 
+/// What a dismissal snoozes. Never global: that's only the Snooze screen / Watch.
+enum DismissalSnoozeScope: Equatable {
+    case acknowledgeOnly
+    case glucoseType(GlucoseAlertType)
+    case deviceTier(DeviceAlertSeverity)
+}
+
 extension BaseTrioAlertManager: TrioModalAlertResponder, TrioUserNotificationAlertResponder {
+    /// Critical, escalation-step and uncatalogued alerts are only acknowledged.
+    static func dismissalSnoozeScope(for identifier: Alert.Identifier) -> DismissalSnoozeScope {
+        if let glucoseType = GlucoseAlertType(slug: identifier.alertIdentifier) {
+            return .glucoseType(glucoseType)
+        }
+        guard let entry = AlertCatalogRegistry.lookup(identifier),
+              let tier = DeviceAlertSeverity(level: entry.interruptionLevel),
+              tier != .critical,
+              !entry.concept.isEscalationStep
+        else { return .acknowledgeOnly }
+        return .deviceTier(tier)
+    }
+
     func requestSnooze(identifier: Alert.Identifier, duration: TimeInterval) {
         // Dismissal is the user's response — full ack (history + device) first.
         handleAcknowledgement(identifier: identifier)
         let untilDate = duration > 0 ? Date().addingTimeInterval(duration) : .distantPast
-        if let glucoseType = GlucoseAlertType(slug: identifier.alertIdentifier) {
+        switch Self.dismissalSnoozeScope(for: identifier) {
+        case .acknowledgeOnly:
+            return
+        case let .glucoseType(glucoseType):
+            // Per-type snooze for glucose alarms — the coordinator stamps
+            // `snoozedUntil` on every matching alarm AND retracts each of
+            // their in-flight alerts, so a stacked deck of multiple lows
+            // dismisses together rather than one card at a time.
             broadcaster.notify(GlucoseSnoozeObserver.self, on: .main) { (observer: GlucoseSnoozeObserver) in
                 observer.snoozeGlucoseType(glucoseType, until: untilDate)
             }
-        } else if let entry = AlertCatalogRegistry.lookup(identifier),
-                  let tier = DeviceAlertSeverity(level: entry.interruptionLevel),
-                  tier != .critical
-        {
-            guard !entry.concept.isEscalationStep else { return }
+        case let .deviceTier(tier):
+            // Per-tier snooze for device alarms — mirrors the glucose
+            // behavior. Records the tier snooze on `DeviceAlertsStore`,
+            // dismisses every in-flight alert in this tier so any
+            // stacked siblings dismiss together.
             DeviceAlertsStore.shared.snoozeTier(tier, until: untilDate)
             dismissAlertsInTier(tier, excluding: identifier)
-        } else {
-            Task { @MainActor [weak self] in
-                await self?.applySnooze(for: duration)
-            }
         }
     }
 
@@ -587,8 +610,7 @@ extension BaseTrioAlertManager: TrioModalAlertResponder, TrioUserNotificationAle
         }
     }
 
-    /// Convenience for the UN-action / Watch / Snooze-module paths that
-    /// don't have an originating alert identifier — they all want global.
+    /// Global snooze for the Snooze screen / Watch; never reached by dismissal.
     func requestSnooze(duration: TimeInterval) {
         Task { @MainActor [weak self] in
             await self?.applySnooze(for: duration)
